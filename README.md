@@ -8,4 +8,4 @@ This package is an exploration into if we could create a CSV decoder that is ali
 
 [elm-decode]: https://package.elm-lang.org/packages/ericgj/elm-csv-decode/latest/
 [elm-json]: https://package.elm-lang.org/packages/elm/json/latest/
-[json-pipeline]: https://package.elm-lang.org/packages/NoRedInk/elm-json-decode-pipeline/latest/  
+[json-pipeline]: https://package.elm-lang.org/packages/NoRedInk/elm-json-decode-pipeline/latest/
