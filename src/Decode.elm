@@ -1,5 +1,6 @@
 module Csv.Decode exposing
     ( Decoder, Csv, Error
+    , string
     , decode
     )
 
@@ -28,6 +29,8 @@ This library gets you the rest of the way, to a list of your own types.
 
 
 # Primitives
+
+@docs string
 
 
 # Run Decoders
@@ -58,8 +61,14 @@ red.
 -}
 type Error
     = UnwrapErrorProblem
-    | GeneralError
+    | Not Kind
     | MultipleErrors (List ( Int, Error ))
+
+
+{-| Kind determines what a decoder expects. Used in combination with the `Not` error.
+-}
+type Kind
+    = AString
 
 
 {-| Decode the given `Csv` into a custom value by running `Decoder` on it.
@@ -105,3 +114,16 @@ isError result =
     result
         |> Result.map (\_ -> True)
         |> Result.withDefault False
+
+
+{-| -}
+string : Decoder String
+string =
+    let
+        take input =
+            input
+                |> List.head
+                |> Maybe.andThen (Just << identity)
+                |> Result.fromMaybe (Not AString)
+    in
+    Decoder take
