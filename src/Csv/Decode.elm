@@ -1,5 +1,5 @@
 module Csv.Decode exposing
-    ( Decoder, Csv, Error
+    ( Decoder, Csv, Error(..)
     , string
     , decode
     )
@@ -43,7 +43,7 @@ This library gets you the rest of the way, to a list of your own types.
 {-| The raw CSV data structure.
 -}
 type alias Csv =
-    { header : List String
+    { headers : List String
     , records : List (List String)
     }
 
@@ -61,6 +61,7 @@ red.
 -}
 type Error
     = UnwrapErrorProblem
+    | CsvParseError
     | Not Kind
     | MultipleErrors (List ( Int, Error ))
 
@@ -116,7 +117,14 @@ isError result =
         |> Result.withDefault False
 
 
-{-| -}
+{-| Decode a CSV string into an Elm `String`.
+
+    decodeString string "true"              == Err ...
+    decodeString string "42"                == Err ...
+    decodeString string "3.14"              == Err ...
+    decodeString string "\"hello\""         == Ok "hello"
+    decodeString string "{ \"hello\": 42 }" == Err ...
+-}
 string : Decoder String
 string =
     let
