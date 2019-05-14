@@ -2,6 +2,8 @@ module Csv.Decode exposing
     ( Decoder, Csv, Error(..), Kind(..)
     , string, int, float, bool
     , decode
+    , map
+    , succeed, fail
     )
 
 {-| Turn CSV Values into Elm values. Inspired by [`elm/json`][elm-json], so make sure to check out this [intro to
@@ -37,6 +39,20 @@ This library gets you the rest of the way, to a list of your own types.
 
 @docs decode
 
+
+# Mapping
+
+**Note:** If you run out of map functions, take a look at `Csv.Decode.Pipeline`
+which makes it easier to handle large objects, but produces lower quality type
+errors.
+
+@docs map
+
+
+# Fancy Decoding
+
+@docs succeed, fail, andThen
+
 -}
 
 
@@ -63,6 +79,7 @@ type Error
     = UnwrapErrorProblem
     | CsvParseError
     | Not Kind
+    | FailWithReason String
     | MultipleErrors (List ( Int, Error ))
 
 
@@ -205,3 +222,52 @@ decodeWith fromString error =
                 |> Result.fromMaybe error
     in
     Decoder take
+
+
+{-| Transform a decoder. Maybe you just want to know the length of a string:
+
+    import String
+
+    stringLength : Decoder Int
+    stringLength =
+        map String.length string
+
+It is often helpful to use `map` with `oneOf`, like when defining `maybe`:
+
+    maybe : Decoder a -> Decoder (Maybe a)
+    maybe decoder =
+        oneOf
+            [ map Just decoder
+            , succeed Nothing
+            ]
+
+-}
+map : (a -> value) -> Decoder a -> Decoder value
+map mapper (Decoder d) =
+    Decoder (d >> Result.map mapper)
+
+
+{-| Ignore the CSV and produce a certain Elm value.
+
+    decodeString (succeed 42) "true"    == Ok 42
+    decodeString (succeed 42) "[1,2,3]" == Ok 42
+    decodeString (succeed 42) "hello"   == Err ... -- this is not a valid JSON string
+
+This is handy when used with `oneOf` or `andThen`.
+
+-}
+succeed : a -> Decoder a
+succeed value =
+    Decoder (\_ -> Ok value)
+
+
+{-| Ignore the CSV and make the decoder fail. This is handy when used with
+`oneOf` or `andThen` where you want to give a custom error message in some
+case.
+
+See the [`andThen`](#andThen) docs for an example.
+
+-}
+fail : String -> Decoder a
+fail reason =
+    Decoder (\_ -> Err <| FailWithReason reason)

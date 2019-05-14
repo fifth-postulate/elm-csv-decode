@@ -1,7 +1,7 @@
 module CsvTest exposing (suite)
 
 import Csv exposing (parse)
-import Csv.Decode exposing (Decoder, Error(..), bool, decode, int, string, float)
+import Csv.Decode exposing (Decoder, Error(..), bool, decode, float, int, map, string, succeed, fail)
 import Expect exposing (Expectation)
 import Test exposing (..)
 
@@ -12,9 +12,12 @@ suite =
         [ describe "decode"
             [ decodeTest "decode a string" "\nhello" string (Ok [ "hello" ])
             , decodeTest "decode an int" "\n37" int (Ok [ 37 ])
-            , decodeTest "decode an bool: True" "\nTrue" bool (Ok [ True ])
-            , decodeTest "decode an bool: false" "\nfalse" bool (Ok [ False ])
-            , decodeTest "decode an float" "\n0.5" float (Ok [ 0.5 ])
+            , decodeTest "decode a bool: True" "\nTrue" bool (Ok [ True ])
+            , decodeTest "decode a bool: false" "\nfalse" bool (Ok [ False ])
+            , decodeTest "decode a float" "\n0.5" float (Ok [ 0.5 ])
+            , decodeTest "map a string" "\nhello" (map String.length string) (Ok [ 5 ])
+            , decodeTest "succeed with value" "\nwhat,ever" (succeed True) (Ok [ True ])
+            , decodeTest "fail with reason" "\nwhat,ever" (fail "Just a test") (Err <| MultipleErrors [(0, FailWithReason "Just a test")])
             ]
         ]
 
