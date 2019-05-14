@@ -3,7 +3,7 @@ module Csv.Decode exposing
     , string, int, float, bool
     , decode
     , map
-    , succeed, fail
+    , succeed, fail, oneOf
     )
 
 {-| Turn CSV Values into Elm values. Inspired by [`elm/json`][elm-json], so make sure to check out this [intro to
@@ -51,7 +51,7 @@ errors.
 
 # Fancy Decoding
 
-@docs succeed, fail, andThen
+@docs succeed, fail, maybe 
 
 -}
 
@@ -80,6 +80,8 @@ type Error
     | CsvParseError
     | Not Kind
     | FailWithReason String
+    | InsufficientFields
+    | NonApply
     | MultipleErrors (List ( Int, Error ))
 
 
@@ -246,6 +248,44 @@ map : (a -> value) -> Decoder a -> Decoder value
 map mapper (Decoder d) =
     Decoder (d >> Result.map mapper)
 
+{-| Try a bunch of different decoders. This can be useful if the CSV may come
+in a couple different formats. For example, say you want to read an array of
+numbers, but some of them are `null`.
+
+    import String
+
+    badInt : Decoder Int
+    badInt =
+      oneOf [ int, null 0 ]
+
+    -- decodeString (list badInt) "[1,2,null,4]" == Ok [1,2,0,4]
+
+Why would someone generate CSV like this? Questions like this are not good
+for your health. The point is that you can use `oneOf` to handle situations
+like this!
+
+You could also use `oneOf` to help version your data. Try the latest format,
+then a few older ones that you still support. You could use `andThen` to be
+even more particular if you wanted.
+-}
+oneOf : List (Decoder a) -> Decoder a
+oneOf decoders =
+    let
+       firstToSucceed ds input =
+            case ds of
+                [] -> Err NonApply
+
+                (Decoder d) :: rs ->
+                    case d input of
+                        Ok _ as result -> result
+
+                        Err _ ->
+                            firstToSucceed rs input
+
+
+    in
+        Decoder <| firstToSucceed decoders
+
 
 {-| Ignore the CSV and produce a certain Elm value.
 
@@ -271,3 +311,4 @@ See the [`andThen`](#andThen) docs for an example.
 fail : String -> Decoder a
 fail reason =
     Decoder (\_ -> Err <| FailWithReason reason)
+
