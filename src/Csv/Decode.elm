@@ -1,6 +1,6 @@
 module Csv.Decode exposing
-    ( Decoder, Csv, Error(..)
-    , string
+    ( Decoder, Csv, Error(..), Kind(..)
+    , string, int, float, bool
     , decode
     )
 
@@ -25,12 +25,12 @@ This library gets you the rest of the way, to a list of your own types.
 
 # Types
 
-@docs Decoder, Csv, Error
+@docs Decoder, Csv, Error, Kind
 
 
 # Primitives
 
-@docs string
+@docs string, int, float, bool
 
 
 # Run Decoders
@@ -70,6 +70,9 @@ type Error
 -}
 type Kind
     = AString
+    | ABool
+    | AInt
+    | AFloat
 
 
 {-| Decode the given `Csv` into a custom value by running `Decoder` on it.
@@ -124,14 +127,81 @@ isError result =
     decodeString string "3.14"              == Err ...
     decodeString string "\"hello\""         == Ok "hello"
     decodeString string "{ \"hello\": 42 }" == Err ...
+
 -}
 string : Decoder String
 string =
+    decodeWith (Just << identity) (Not AString)
+
+
+{-| Decode a CSV boolean into an Elm `Bool`.
+
+    decodeString bool "true"              == Ok True
+    decodeString bool "42"                == Err ...
+    decodeString bool "3.14"              == Err ...
+    decodeString bool "\"hello\""         == Err ...
+    decodeString bool "{ \"hello\": 42 }" == Err ...
+
+-}
+bool : Decoder Bool
+bool =
+    decodeWith stringToBool (Not ABool)
+
+
+stringToBool : String -> Maybe Bool
+stringToBool input =
+    case input of
+        "True" ->
+            Just True
+
+        "true" ->
+            Just True
+
+        "False" ->
+            Just False
+
+        "false" ->
+            Just False
+
+        _ ->
+            Nothing
+
+
+{-| Decode a CSV number into an Elm `Int`.
+
+    decodeString int "true"              == Err ...
+    decodeString int "42"                == Ok 42
+    decodeString int "3.14"              == Err ...
+    decodeString int "\"hello\""         == Err ...
+    decodeString int "{ \"hello\": 42 }" == Err ...
+
+-}
+int : Decoder Int
+int =
+    decodeWith String.toInt (Not AInt)
+
+
+{-| Decode a CSV number into an Elm `Float`.
+
+    decodeString float "true"              == Err ..
+    decodeString float "42"                == Ok 42
+    decodeString float "3.14"              == Ok 3.14
+    decodeString float "\"hello\""         == Err ...
+    decodeString float "{ \"hello\": 42 }" == Err ...
+
+-}
+float : Decoder Float
+float =
+    decodeWith String.toFloat (Not AFloat)
+
+
+decodeWith : (String -> Maybe a) -> Error -> Decoder a
+decodeWith fromString error =
     let
         take input =
             input
                 |> List.head
-                |> Maybe.andThen (Just << identity)
-                |> Result.fromMaybe (Not AString)
+                |> Maybe.andThen fromString
+                |> Result.fromMaybe error
     in
     Decoder take
