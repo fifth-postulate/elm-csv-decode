@@ -66,7 +66,7 @@ type alias Csv =
 {-| A value that knows how to decode CSV values.
 -}
 type Decoder a
-    = Decoder (List String -> Result Error a)
+    = Decoder (List String -> Result Error (a, List String))
 
 
 {-| A structured error describing exactly how the decoder failed. You can use
@@ -103,12 +103,12 @@ decode (Decoder mapper) { records } =
         |> gather
 
 
-gather : List (Result Error a) -> Result Error (List a)
+gather : List (Result Error (a, List String)) -> Result Error (List a)
 gather results =
     let
         split ( index, result ) ( errors, vs ) =
             case result of
-                Ok v ->
+                Ok (v, _) ->
                     ( errors, v :: vs )
 
                 Err error ->
@@ -220,6 +220,7 @@ decodeWith fromString error =
             input
                 |> List.head
                 |> Maybe.andThen fromString
+                |> Maybe.map (\v -> (v, List.tail input |> Maybe.withDefault []))
                 |> Result.fromMaybe error
     in
     Decoder take
@@ -245,7 +246,12 @@ It is often helpful to use `map` with `oneOf`, like when defining `maybe`:
 -}
 map : (a -> value) -> Decoder a -> Decoder value
 map mapper (Decoder d) =
-    Decoder (d >> Result.map mapper)
+    let
+        mapPair (v, rest) =
+            (mapper v, rest)        
+    in
+    
+    Decoder (d >> Result.map mapPair)
 
 
 {-| Helpful for dealing with optional fields. Here are a few slightly different
@@ -327,7 +333,7 @@ This is handy when used with `oneOf` or `andThen`.
 -}
 succeed : a -> Decoder a
 succeed value =
-    Decoder (\_ -> Ok value)
+    Decoder (\input -> Ok (value, input))
 
 
 {-| Ignore the CSV and make the decoder fail. This is handy when used with
