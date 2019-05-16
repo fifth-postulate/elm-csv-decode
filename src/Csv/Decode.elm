@@ -2,7 +2,7 @@ module Csv.Decode exposing
     ( Decoder, Csv, Error(..), Kind(..)
     , string, int, float, bool
     , decode
-    , map
+    , map, map2
     , succeed, fail, maybe, oneOf
     )
 
@@ -45,7 +45,7 @@ This library gets you the rest of the way, to a list of your own types.
 which makes it easier to handle large objects, but produces lower quality type
 errors.
 
-@docs map
+@docs map, map2
 
 
 # Fancy Decoding
@@ -66,7 +66,7 @@ type alias Csv =
 {-| A value that knows how to decode CSV values.
 -}
 type Decoder a
-    = Decoder (List String -> Result Error (a, List String))
+    = Decoder (List String -> Result Error ( a, List String ))
 
 
 {-| A structured error describing exactly how the decoder failed. You can use
@@ -103,12 +103,12 @@ decode (Decoder mapper) { records } =
         |> gather
 
 
-gather : List (Result Error (a, List String)) -> Result Error (List a)
+gather : List (Result Error ( a, List String )) -> Result Error (List a)
 gather results =
     let
         split ( index, result ) ( errors, vs ) =
             case result of
-                Ok (v, _) ->
+                Ok ( v, _ ) ->
                     ( errors, v :: vs )
 
                 Err error ->
@@ -220,7 +220,7 @@ decodeWith fromString error =
             input
                 |> List.head
                 |> Maybe.andThen fromString
-                |> Maybe.map (\v -> (v, List.tail input |> Maybe.withDefault []))
+                |> Maybe.map (\v -> ( v, List.tail input |> Maybe.withDefault [] ))
                 |> Result.fromMaybe error
     in
     Decoder take
@@ -247,11 +247,43 @@ It is often helpful to use `map` with `oneOf`, like when defining `maybe`:
 map : (a -> value) -> Decoder a -> Decoder value
 map mapper (Decoder d) =
     let
-        mapPair (v, rest) =
-            (mapper v, rest)        
+        mapPair ( v, rest ) =
+            ( mapper v, rest )
     in
-    
     Decoder (d >> Result.map mapPair)
+
+
+{-| Try two decoders and then combine the result. We can use this to decode
+objects with many fields:
+
+
+    type alias Point =
+        { x : Float, y : Float }
+
+    point : Decoder Point
+    point =
+        map2 Point
+            (field "x" float)
+            (field "y" float)
+
+    -- decodeString point """{ "x": 3, "y": 4 }""" == Ok { x = 3, y = 4 }
+
+It tries each individual decoder and puts the result together with the `Point`
+constructor.
+
+-}
+map2 : (a -> b -> value) -> Decoder a -> Decoder b -> Decoder value
+map2 mapper (Decoder a) (Decoder b) =
+    let
+        nextDecoder ( u, us ) =
+            case b us of
+                Ok ( v, vs ) ->
+                    Ok ( mapper u v, vs )
+
+                Err error ->
+                    Err error
+    in
+    Decoder (a >> Result.andThen nextDecoder)
 
 
 {-| Helpful for dealing with optional fields. Here are a few slightly different
@@ -333,7 +365,7 @@ This is handy when used with `oneOf` or `andThen`.
 -}
 succeed : a -> Decoder a
 succeed value =
-    Decoder (\input -> Ok (value, input))
+    Decoder (\input -> Ok ( value, input ))
 
 
 {-| Ignore the CSV and make the decoder fail. This is handy when used with
