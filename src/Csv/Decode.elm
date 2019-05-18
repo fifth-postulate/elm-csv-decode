@@ -2,7 +2,7 @@ module Csv.Decode exposing
     ( Decoder, Csv, Error(..), Kind(..)
     , string, int, float, bool
     , decode
-    , map, map2
+    , map, map2, map3
     , succeed, fail, maybe, oneOf
     )
 
@@ -45,7 +45,7 @@ This library gets you the rest of the way, to a list of your own types.
 which makes it easier to handle large objects, but produces lower quality type
 errors.
 
-@docs map, map2
+@docs map, map2, map3
 
 
 # Fancy Decoding
@@ -284,6 +284,47 @@ map2 mapper (Decoder a) (Decoder b) =
                     Err error
     in
     Decoder (a >> Result.andThen nextDecoder)
+
+
+{-| Try three decoders and then combine the result. We can use this to decode
+objects with many fields:
+
+
+    type alias Person =
+        { name : String, age : Int, height : Float }
+
+    person : Decoder Person
+    person =
+        map3 Person
+            (at [ "name" ] string)
+            (at [ "info", "age" ] int)
+            (at [ "info", "height" ] float)
+
+    -- json = """{ "name": "tom", "info": { "age": 42, "height": 1.8 } }"""
+    -- decodeString person json == Ok { name = "tom", age = 42, height = 1.8 }
+
+Like `map2` it tries each decoder in order and then give the results to the
+`Person` constructor. That can be any function though!
+
+-}
+map3 : (a -> b -> c -> value) -> Decoder a -> Decoder b -> Decoder c -> Decoder value
+map3 mapper (Decoder a) (Decoder b) (Decoder c) =
+    let
+        next2Decoders ( u, us ) =
+            case b us of
+                Ok ( v, vs ) ->
+                    case c vs of
+                        Ok ( w, ws ) ->
+                            Ok ( mapper u v w, ws )
+
+                        Err error ->
+                            Err error
+
+                Err error ->
+
+                    Err error
+    in
+    Decoder (a >> Result.andThen next2Decoders)
 
 
 {-| Helpful for dealing with optional fields. Here are a few slightly different

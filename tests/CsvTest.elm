@@ -1,7 +1,7 @@
 module CsvTest exposing (suite)
 
 import Csv exposing (parse)
-import Csv.Decode exposing (Decoder, Error(..), bool, decode, fail, float, int, map, map2, maybe, oneOf, string, succeed)
+import Csv.Decode exposing (Decoder, Error(..), bool, decode, fail, float, int, map, map2, map3, maybe, oneOf, string, succeed)
 import Expect exposing (Expectation)
 import Test exposing (..)
 
@@ -21,7 +21,8 @@ suite =
             , decodeTest "oneOf int" "\nnot a number" (oneOf [ int, succeed 51 ]) (Ok [ 51 ])
             , decodeTest "maybe int: Nothing" "\n,3435" (maybe int) (Ok [ Nothing ])
             , decodeTest "maybe int: Just" "\n28,3435" (maybe int) (Ok [ Just 28 ])
-            , decodeTest "map2 a TestPoint" "\n0.3,0.5" (map2 TestPoint float float) (Ok [ TestPoint 0.3 0.5 ])
+            , decodeTest "map2 a Point" "\n3,4" (map2 Point float float) (Ok [ Point 3 4 ])
+            , decodeTest "map3 a Person" "\nTom,42,1.8" (map3 Person string int float) (Ok [ Person "Tom" 42 1.8 ])
             ]
         ]
 
@@ -40,7 +41,11 @@ decodeTest description input decoder expected =
             Expect.equal expected actual
 
 
-type alias TestPoint =
+type alias Point =
     { x : Float
     , y : Float
     }
+
+
+type alias Person =
+    { name : String, age : Int, height : Float }
