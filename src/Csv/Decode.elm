@@ -16,13 +16,22 @@ Note this library does not include an underlying CSV parser. It assumes you are 
 
     type alias Csv =
         { headers : List String
-
-type , records : List (List String)
-}
+        , records : List (List String)
+        }
 
 This library gets you the rest of the way, to a list of your own types.
 
 [periodic]: https://package.elm-lang.org/packages/periodic/elm-csv/latest/
+
+In the examples we make use of a `decodeString` function. Which is defined as
+
+    decodeString : Decoder a -> String -> Result Error (List a)
+    decodeString decoder input =
+        input
+            |> (++) "\n"
+            |> Csv.parse
+            |> Result.mapError (\_ -> CsvParseError)
+            |> Result.andThen (decode decoder)
 
 
 # Types
@@ -128,11 +137,13 @@ gather results =
 
 {-| Decode a CSV string into an Elm `String`.
 
-    decodeString string "true"              == Err ...
-    decodeString string "42"                == Err ...
-    decodeString string "3.14"              == Err ...
-    decodeString string "\"hello\""         == Ok "hello"
-    decodeString string "{ \"hello\": 42 }" == Err ...
+    decodeString string "true" == Ok [ "true" ]
+
+    decodeString string "42" == Ok [ "42" ]
+
+    decodeString string "3.14" == Ok [ "3.14" ]
+
+    decodeString string "hello" == Ok [ "hello" ]
 
 -}
 string : Decoder String
@@ -142,11 +153,10 @@ string =
 
 {-| Decode a CSV boolean into an Elm `Bool`.
 
-    decodeString bool "true"              == Ok True
-    decodeString bool "42"                == Err ...
-    decodeString bool "3.14"              == Err ...
-    decodeString bool "\"hello\""         == Err ...
-    decodeString bool "{ \"hello\": 42 }" == Err ...
+    decodeString bool "true"  == Ok [ True ]
+    decodeString bool "42"    == Err ...
+    decodeString bool "3.14"  == Err ...
+    decodeString bool "hello" == Err ...
 
 -}
 bool : Decoder Bool
@@ -175,11 +185,10 @@ stringToBool input =
 
 {-| Decode a CSV number into an Elm `Int`.
 
-    decodeString int "true"              == Err ...
-    decodeString int "42"                == Ok 42
-    decodeString int "3.14"              == Err ...
-    decodeString int "\"hello\""         == Err ...
-    decodeString int "{ \"hello\": 42 }" == Err ...
+    decodeString int "true"  == Err ...
+    decodeString int "42"    == Ok [ 42 ]
+    decodeString int "3.14"  == Err ...
+    decodeString int "hello" == Err ...
 
 -}
 int : Decoder Int
@@ -189,11 +198,10 @@ int =
 
 {-| Decode a CSV number into an Elm `Float`.
 
-    decodeString float "true"              == Err ..
-    decodeString float "42"                == Ok 42
-    decodeString float "3.14"              == Ok 3.14
-    decodeString float "\"hello\""         == Err ...
-    decodeString float "{ \"hello\": 42 }" == Err ...
+    decodeString float "true"  == Err ..
+    decodeString float "42"    == Ok [ 42 ]
+    decodeString float "3.14"  == Ok [ 3.14 ]
+    decodeString float "hello" == Err ...
 
 -}
 float : Decoder Float
@@ -251,10 +259,10 @@ objects with many fields:
     point : Decoder Point
     point =
         map2 Point
-            (field "x" float)
-            (field "y" float)
+            float
+            float
 
-    -- decodeString point """{ "x": 3, "y": 4 }""" == Ok { x = 3, y = 4 }
+    -- decodeString point "3,4" == Ok { x = 3, y = 4 }
 
 It tries each individual decoder and puts the result together with the `Point`
 constructor.
@@ -284,12 +292,12 @@ objects with many fields:
     person : Decoder Person
     person =
         map3 Person
-            (at [ "name" ] string)
-            (at [ "info", "age" ] int)
-            (at [ "info", "height" ] float)
+            string
+            int
+            float
 
-    -- json = """{ "name": "tom", "info": { "age": 42, "height": 1.8 } }"""
-    -- decodeString person json == Ok { name = "tom", age = 42, height = 1.8 }
+    -- csv = "tom,42,1.8"
+    -- decodeString person csv == Ok { name = "tom", age = 42, height = 1.8 }
 
 Like `map2` it tries each decoder in order and then give the results to the
 `Person` constructor. That can be any function though!
@@ -317,21 +325,9 @@ map3 mapper (Decoder a) (Decoder b) (Decoder c) =
 {-| Helpful for dealing with optional fields. Here are a few slightly different
 examples:
 
-    json = """{ "name": "tom", "age": 42 }"""
+    decodeString (maybe int) "42" == Ok [ Just 42 ]
 
-    decodeString (maybe (field "age"    int  )) json == Ok (Just 42)
-    decodeString (maybe (field "name"   int  )) json == Ok Nothing
-    decodeString (maybe (field "height" float)) json == Ok Nothing
-
-    decodeString (field "age"    (maybe int  )) json == Ok (Just 42)
-    decodeString (field "name"   (maybe int  )) json == Ok Nothing
-    decodeString (field "height" (maybe float)) json == Err ...
-
-Notice the last example! It is saying we _must_ have a field named `height` and
-the content _may_ be a float. There is no `height` field, so the decoder fails.
-
-Point is, `maybe` will make exactly what it contains conditional. For optional
-fields, this means you probably want it _outside_ a use of `field` or `at`.
+    decodeString (maybe int) ",42" == Ok [ Nothing ]
 
 -}
 maybe : Decoder a -> Decoder (Maybe a)
@@ -358,10 +354,6 @@ Why would someone generate CSV like this? Questions like this are not good
 for your health. The point is that you can use `oneOf` to handle situations
 like this!
 
-You could also use `oneOf` to help version your data. Try the latest format,
-then a few older ones that you still support. You could use `andThen` to be
-even more particular if you wanted.
-
 -}
 oneOf : List (Decoder a) -> Decoder a
 oneOf decoders =
@@ -384,11 +376,11 @@ oneOf decoders =
 
 {-| Ignore the CSV and produce a certain Elm value.
 
-    decodeString (succeed 42) "true"    == Ok 42
-    decodeString (succeed 42) "[1,2,3]" == Ok 42
-    decodeString (succeed 42) "hello"   == Err ... -- this is not a valid JSON string
+    decodeString (succeed 42) "true"  == Ok [ 42 ]
+    decodeString (succeed 42) "1,2,3" == Ok [ 42 ]
+    decodeString (succeed 42) "hello" == Ok [ 42 ]
 
-This is handy when used with `oneOf` or `andThen`.
+This is handy when used with `oneOf`.
 
 -}
 succeed : a -> Decoder a
@@ -397,7 +389,7 @@ succeed value =
 
 
 {-| Ignore the CSV and make the decoder fail. This is handy when used with
-`oneOf` or `andThen` where you want to give a custom error message in some
+`oneOf` where you want to give a custom error message in some
 case.
 -}
 fail : String -> Decoder a
