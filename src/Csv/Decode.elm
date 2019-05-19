@@ -16,8 +16,9 @@ Note this library does not include an underlying CSV parser. It assumes you are 
 
     type alias Csv =
         { headers : List String
-        , records : List (List String)
-        }
+
+type , records : List (List String)
+}
 
 This library gets you the rest of the way, to a list of your own types.
 
@@ -40,10 +41,6 @@ This library gets you the rest of the way, to a list of your own types.
 
 
 # Mapping
-
-**Note:** If you run out of map functions, take a look at `Csv.Decode.Pipeline`
-which makes it easier to handle large objects, but produces lower quality type
-errors.
 
 @docs map, map2, map3
 
@@ -75,16 +72,14 @@ you could show the entire CSV record and show the part causing the failure in
 red.
 -}
 type Error
-    = UnwrapErrorProblem
-    | CsvParseError
+    = CsvParseError
     | Not Kind
     | FailWithReason String
-    | InsufficientFields
     | NonApply
     | MultipleErrors (List ( Int, Error ))
 
 
-{-| Kind determines what a decoder expects. Used in combination with the `Not` error.
+{-| Kind determines what type a decoder expects. Used in combination with the `Not` error.
 -}
 type Kind
     = AString
@@ -93,7 +88,7 @@ type Kind
     | AFloat
 
 
-{-| Decode the given `Csv` into a custom value by running `Decoder` on it.
+{-| Decode the given `Csv` into a list of custom value by running `Decoder` on it.
 This will fail if any of the records can not be decoded by the `Decoder` for some reason.
 -}
 decode : Decoder a -> Csv -> Result Error (List a)
@@ -129,13 +124,6 @@ gather results =
             |> List.reverse
             |> MultipleErrors
             |> Err
-
-
-isError : Result e t -> Bool
-isError result =
-    result
-        |> Result.map (\_ -> True)
-        |> Result.withDefault False
 
 
 {-| Decode a CSV string into an Elm `String`.
@@ -321,7 +309,6 @@ map3 mapper (Decoder a) (Decoder b) (Decoder c) =
                             Err error
 
                 Err error ->
-
                     Err error
     in
     Decoder (a >> Result.andThen next2Decoders)
@@ -412,9 +399,6 @@ succeed value =
 {-| Ignore the CSV and make the decoder fail. This is handy when used with
 `oneOf` or `andThen` where you want to give a custom error message in some
 case.
-
-See the [`andThen`](#andThen) docs for an example.
-
 -}
 fail : String -> Decoder a
 fail reason =
