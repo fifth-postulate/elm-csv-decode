@@ -33,12 +33,17 @@ decodeTest description input decoder expected =
         \_ ->
             let
                 actual =
-                    input
-                        |> parse
-                        |> Result.mapError (\_ -> CsvParseError)
-                        |> Result.andThen (decode decoder)
+                    decodeString input decoder
             in
             Expect.equal expected actual
+
+
+decodeString : String -> Decoder a -> Result Error (List a)
+decodeString input decoder =
+    input
+        |> parse
+        |> Result.mapError (\_ -> CsvParseError)
+        |> Result.andThen (decode decoder)
 
 
 type alias Point =
